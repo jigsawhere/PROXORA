@@ -3,3 +3,4 @@ Flask
 reportlab
 python-docx
 google-generativeai
+requests
