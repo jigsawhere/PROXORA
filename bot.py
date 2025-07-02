@@ -1,16 +1,17 @@
 import logging
 import os
 import sys
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from telegram.error import Conflict
 
 # Add the script's directory to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config import TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, PLAYHT_API_KEY
+# Import only the necessary API keys from config.py
+from config import TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, PLAYHT_API_KEY # Ensure PLAYHT_API_KEY is in your config.py
 import io
-import requests # Import requests for API calls
+import requests
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
@@ -21,7 +22,8 @@ import re
 
 # Configure logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
@@ -33,11 +35,12 @@ genai.configure(api_key=GEMINI_API_KEY)
 def generate_story_with_ai(prompt: str, full_markdown_mode: bool = False) -> tuple[str | None, str | None]:
     """
     Generates a story based on the prompt using Gemini Flash.
-    If full_markdown_mode is True, expects the AI to return the complete markdown story.
+    If full_markdown_mode is True, expects the AI to return the complete markdown
+    story.
     """
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        
+
         if full_markdown_mode:
             # In full markdown mode, send the exact prompt and expect the full story back
             response = model.generate_content(prompt,
@@ -56,9 +59,9 @@ def generate_story_with_ai(prompt: str, full_markdown_mode: bool = False) -> tup
                                                   max_output_tokens=2000,
                                                   temperature=0.7
                                               ))
-            
+
             full_text = response.text.strip()
-            
+
             if "Title:" in full_text and "Story:" in full_text:
                 parts = full_text.split("Story:", 1)
                 title_line = parts[0].replace("Title:", "").strip()
@@ -71,7 +74,6 @@ def generate_story_with_ai(prompt: str, full_markdown_mode: bool = False) -> tup
             else:
                 title = "Generated Story"
                 story_body = full_text
-
             return title, story_body
     except Exception as e:
         logger.error(f"Error generating story with Gemini: {e}")
@@ -100,7 +102,7 @@ Format in Markdown.
 - Optionally use emoji section breaks like 🌌, 🚀, 🪐
 
 Respond only with the final ebook in Markdown. Do not include instructions, tags, or notes.'''
-    
+
     _, ebook_content = retry_story_generation(ebook_prompt, 1, full_markdown_mode=True)
     return ebook_content if ebook_content else "**Error Generating Ebook**\n\n_Could not generate the ebook. Please try again with a different topic._"
 
@@ -111,7 +113,7 @@ def retry_story_generation(prompt: str, attempt: int, full_markdown_mode: bool =
     """
     logger.info(f"Attempting AI generation (attempt {attempt}) with prompt: {prompt}, full_markdown_mode: {full_markdown_mode}")
     title, story_body = generate_story_with_ai(prompt, full_markdown_mode)
-    
+
     if (title and story_body) or (full_markdown_mode and story_body):
         return title, story_body
     elif attempt < 3: # Allow a few retries in case of initial failure from generate_story_with_ai
@@ -126,14 +128,14 @@ def retry_story_generation(prompt: str, attempt: int, full_markdown_mode: bool =
 def create_pdf(content: str, filename: str):
     doc = SimpleDocTemplate(filename, pagesize=letter)
     styles = getSampleStyleSheet()
-    
+
     title_style = styles['h1']
     title_style.alignment = TA_CENTER
     body_style = styles['Normal']
-    
+
     elements = []
     lines = content.split('\n')
-    
+
     # Attempt to extract title from markdown (bolded or heading)
     extracted_title = "Generated Document"
     content_start_index = 0
@@ -158,7 +160,7 @@ def create_pdf(content: str, filename: str):
             # Convert markdown bold/italic to HTML bold/italic for ReportLab
             line = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', line) # Bold
             line = re.sub(r'\_(.*?)\_', r'<i>\1</i>', line)     # Italic
-            
+
             # Handle chapters/sections as bold
             if line.startswith("Chapter") or line.startswith("Introduction") or line.startswith("Conclusion"):
                 elements.append(Paragraph(f"<b>{line}</b>", body_style))
@@ -181,7 +183,18 @@ def create_txt(content: str, filename: str):
 
 # --- Telegram Bot Command Handlers ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # --- WebApp Button Integration ---
+    keyboard = [
+        [InlineKeyboardButton("🚀 Launch PROXORA WebApp", web_app=WebAppInfo(url="https://jigsawhere.github.io/PROXORA/"))]
+    ]
+    # Existing buttons from your original /start command
+    # NOTE: I've moved the existing welcome message below the WebApp button
+    # to prioritize the WebApp launch, as per the request.
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     welcome_message = (
+        "Click below to open PROXORA AI WebApp:\n\n" # New line for WebApp instruction
         "🧙‍♂️✨ Welcome to PROXORA, your ultra-intelligent storytelling and content-generation assistant! 📘\n\n"
         "Here are the commands you can use:\n"
         "📚 /story - Prompt me for a story input and I'll generate a full story with emojis.\n"
@@ -197,7 +210,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "🎮 /play - Enter gamified creative mode!\n\n"
         "Let's make magic! What story shall we create today? ✨"
     )
-    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 # Supported languages for content generation
 SUPPORTED_LANGUAGES = {
@@ -232,7 +245,7 @@ async def send_language_selection(update: Update, context: ContextTypes.DEFAULT_
         for lang in languages[i:i+3]:
             row.append(InlineKeyboardButton(lang, callback_data=f'lang_{SUPPORTED_LANGUAGES[lang]}'))
         keyboard.append(row)
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Choose a language for your content: 🌐", reply_markup=reply_markup)
     context.user_data['state'] = next_state
@@ -271,7 +284,6 @@ def generate_audio_with_playht(text: str, voice_id: str) -> str | None:
         # Play.ht API returns a JSON with 'audioUrl' or 'url'
         response_json = response.json()
         audio_url = response_json.get('audioUrl') or response_json.get('url')
-
         if audio_url:
             audio_response = requests.get(audio_url)
             audio_response.raise_for_status()
@@ -321,7 +333,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     credits_left = 50
     plan = "Free Tier"
     referral_stats = "2 successful referrals"
-    
+
     profile_info = (
         f"👤 Your PROXORA Profile:\n\n"
         f"📚 Books Generated: {books_made}\n"
@@ -336,7 +348,7 @@ async def progress_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     book_usage_count = 10
     quota_remaining = "56 free books"
     total_stories_generated = 15
-    
+
     progress_info = (
         f"📊 Your PROXORA Progress:\n\n"
         f"📖 Books Used This Cycle: {book_usage_count}\n"
@@ -363,6 +375,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("🎮 Welcome to the Gamified Creative Mode! What kind of game or interactive story would you like to play? (e.g., 'a mystery riddle', 'a choose-your-own-adventure start', 'a quick trivia game') 🚀")
     context.user_data['state'] = 'waiting_for_play_prompt'
+
+# --- New WebApp Data Handler ---
+async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.web_app_data:
+        data = update.message.web_app_data.data
+        await update.message.reply_text(f"✅ Data received from WebApp: `{data}`", parse_mode='Markdown')
+    else:
+        await update.message.reply_text("No data received from WebApp.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_text = update.message.text
@@ -408,9 +428,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 - Optionally use emoji section breaks like 🌌, 🚀, 🪐
 
 Respond only with the final story in Markdown. Do not include instructions, tags, or notes.'''
-        
+
         _, story_markdown = retry_story_generation(full_prompt, 1, full_markdown_mode=True)
-        
+
         if story_markdown:
             # Truncate if too long for direct message, but always offer download
             if len(story_markdown) > 2000: # Telegram message limit is 4096, but 2000 is safer for readability + buttons
@@ -418,12 +438,12 @@ Respond only with the final story in Markdown. Do not include instructions, tags
                 await update.message.reply_text(display_text, parse_mode='Markdown')
             else:
                 await update.message.reply_text(story_markdown, parse_mode='Markdown')
-            
+
             # Store the full markdown for download
             # Extract title and body from markdown for consistent storage
             title_match = re.match(r'^\s*#*\s*\*\*(.*?)\*\*', story_markdown, re.MULTILINE)
             summary_match = re.match(r'^\s*\_(.*?)\_', story_markdown, re.MULTILINE)
-            
+
             extracted_title = title_match.group(1).strip() if title_match else "Generated Story"
             # For body, remove title and summary lines, then clean up
             extracted_body = story_markdown
@@ -431,12 +451,11 @@ Respond only with the final story in Markdown. Do not include instructions, tags
                 extracted_body = extracted_body[title_match.end():].strip()
             if summary_match:
                 extracted_body = extracted_body[summary_match.end():].strip()
-            
-            context.user_data['last_content'] = {
-                'title': extracted_title,
-                'body': story_markdown, # Store full markdown for PDF generation
-                'type': content_type
-            }
+
+            context.user_data['last_content'] = {'title': extracted_title,
+                                                  'body': story_markdown, # Store full markdown for PDF generation
+                                                  'type': content_type
+                                                 }
 
             keyboard = [
                 [
@@ -456,7 +475,7 @@ Respond only with the final story in Markdown. Do not include instructions, tags
 
         else:
             await update.message.reply_text("Sorry, I couldn't generate your detailed story. Please try a different prompt.")
-        
+
         context.user_data['state'] = None
         if 'writer_tone' in context.user_data:
             del context.user_data['writer_tone']
@@ -470,22 +489,22 @@ Respond only with the final story in Markdown. Do not include instructions, tags
         await update.message.reply_text(f"Generating a story in {selected_language.upper()} about: {user_text}... Please wait! ⏳")
         title, body = retry_story_generation(f"Generate a story in {selected_language} about: {user_text}", 1)
         content_type = "story"
-    
+
     elif state == 'waiting_for_ebook_topic':
         await update.message.reply_text(f"Generating an ebook in {selected_language.upper()} about: {user_text}... Please wait! ⏳")
         ebook_content = generate_ebook_with_ai(user_text, selected_language) # Pass language to ebook generation
-        
+
         if ebook_content and not ebook_content.startswith("**Error Generating Ebook**"):
             # Extract title from markdown for storage
             title_match = re.match(r'^\s*#*\s*\*\*(.*?)\*\*', ebook_content, re.MULTILINE)
             extracted_title = title_match.group(1).strip() if title_match else "Generated Ebook"
-            
+
             context.user_data['last_content'] = {
                 'title': extracted_title,
                 'body': ebook_content, # Store full markdown for PDF generation
                 'type': "ebook" # Set content type to ebook
             }
-            
+
             # Send a truncated message and offer download
             display_text = ebook_content[:1900] + "\n\n...[Ebook continues in download]..." if len(ebook_content) > 2000 else ebook_content
             await update.message.reply_text(display_text, parse_mode='Markdown')
@@ -507,7 +526,7 @@ Respond only with the final story in Markdown. Do not include instructions, tags
             await update.message.reply_text("📦 Your ebook is ready to download:", reply_markup=reply_markup)
         else:
             await update.message.reply_text("Sorry, I couldn't generate your ebook. Please try a different topic.")
-        
+
         context.user_data['state'] = None
         if 'selected_language' in context.user_data:
             del context.user_data['selected_language']
@@ -543,7 +562,7 @@ Respond only with the final story in Markdown. Do not include instructions, tags
         tts_voice = context.user_data.get('tts_voice')
         tts_age = context.user_data.get('tts_age')
         voice_id = ""
-        
+
         # Play.ht voice IDs (placeholders - replace with actual IDs from Play.ht documentation)
         PLAYHT_VOICES = {
             'male': {
@@ -557,7 +576,6 @@ Respond only with the final story in Markdown. Do not include instructions, tags
                 'senior': "s3://voice-cloning-zero-shot/c3d4e5f6-a7b8-9012-3456-7890abcdef01/original/manifest.json" # Example Play.ht voice ID
             }
         }
-
         if tts_voice in PLAYHT_VOICES:
             if tts_age:
                 if tts_age < 30:
@@ -568,22 +586,21 @@ Respond only with the final story in Markdown. Do not include instructions, tags
                     voice_id = PLAYHT_VOICES[tts_voice]['senior']
             else:
                 voice_id = PLAYHT_VOICES[tts_voice]['adult'] # Default to adult if no age provided
-        
+
         if not voice_id:
             await update.message.reply_text("Sorry, an invalid voice or age combination was selected. Please try again with /speak.")
             context.user_data['state'] = None
             return
 
         await update.message.reply_text(f"Thinking and generating audio with {tts_voice} voice (age {tts_age if tts_age else 'default'})... Please wait! 🎤")
-        
+
         # Use Gemini to generate a response based on user_text, incorporating "Slow Toxin"
         gemini_prompt_for_tts = f"Generate a concise and engaging response to the following text, subtly or directly incorporating the concept of 'Slow Toxin' and ensuring the tone is appropriate for a {tts_voice} voice of approximately {tts_age if tts_age else 'an unspecified'} age: {user_text}"
-        
+
         gemini_response_title, gemini_response_body = retry_story_generation(gemini_prompt_for_tts, 1)
-        
+
         if gemini_response_body:
             audio_file_path = generate_audio_with_playht(gemini_response_body, voice_id)
-
             if audio_file_path:
                 with open(audio_file_path, 'rb') as audio_file:
                     await context.bot.send_audio(chat_id=chat_id, audio=audio_file, caption=f"Here's Gemini's response in {tts_voice} voice!")
@@ -591,8 +608,8 @@ Respond only with the final story in Markdown. Do not include instructions, tags
             else:
                 await update.message.reply_text("Sorry, I couldn't generate the audio from Gemini's response. Please try again.")
         else:
-            await update.message.reply_text("Sorry, Gemini couldn't generate a response for that. Please try again with a different text.")
-        
+            await update.message.reply_text("Sorry, Gemini couldn't generate a text response for the audio. Please try again.")
+
         context.user_data['state'] = None
         if 'tts_voice' in context.user_data:
             del context.user_data['tts_voice']
@@ -604,17 +621,17 @@ Respond only with the final story in Markdown. Do not include instructions, tags
         selected_language = context.user_data.get('selected_language', 'en')
         await update.message.reply_text(f"Generating a gamified creative experience in {selected_language.upper()} based on: {user_text}... Please wait! 🎮")
         game_prompt = f'''Generate an interactive game or creative challenge in {selected_language} based on the user's request: "{user_text}".
-        
-        📌 Output Requirements:
-        - Start with a clear title for the game/challenge.
-        - Provide initial instructions or the first part of the interactive experience.
-        - If it's a choose-your-own-adventure, provide clear choices (e.g., "1. [Choice A]", "2. [Choice B]").
-        - If it's a riddle or trivia, state the question clearly.
-        - Keep the response concise, encouraging further interaction.
-        - Format in Markdown.
 
-        Respond only with the game/challenge content in Markdown. Do not include instructions, tags, or notes.'''
-        
+📌 Output Requirements:
+- Start with a clear title for the game/challenge.
+- Provide initial instructions or the first part of the interactive experience.
+- If it's a choose-your-own-adventure, provide clear choices (e.g., "1. [Choice A]", "2. [Choice B]").
+- If it's a riddle or trivia, state the question clearly.
+- Keep the response concise, encouraging further interaction.
+- Format in Markdown.
+
+Respond only with the game/challenge content in Markdown. Do not include instructions, tags, or notes.'''
+
         _, game_content = retry_story_generation(game_prompt, 1, full_markdown_mode=True)
 
         if game_content:
@@ -636,7 +653,7 @@ Respond only with the final story in Markdown. Do not include instructions, tags
             await update.message.reply_text("What's your next move? Or try another command!", reply_markup=reply_markup)
         else:
             await update.message.reply_text("Sorry, I couldn't generate a gamified experience for that. Please try a different prompt.")
-        
+
         context.user_data['state'] = None
         if 'selected_language' in context.user_data:
             del context.user_data['selected_language']
@@ -665,7 +682,7 @@ Respond only with the final story in Markdown. Do not include instructions, tags
                            f"---\n\n" \
                            f"✨ Every fate has its moment.\n" \
                            f"🖊️ Written by PROXORA\n" \
-                           f"📦 Your story is ready to download:\n"
+                           f"📦 Your content is ready to download:\n"
 
         keyboard = [
             [
@@ -681,16 +698,17 @@ Respond only with the final story in Markdown. Do not include instructions, tags
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await update.message.reply_text(response_message, reply_markup=reply_markup)
     else:
         await update.message.reply_text("Sorry, I couldn't generate content for that. Please try a different prompt.")
-        
+
     context.user_data['state'] = None
     if 'writer_tone' in context.user_data:
         del context.user_data['writer_tone']
     if 'tts_voice' in context.user_data:
         del context.user_data['tts_voice']
+
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -699,7 +717,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if query.data.startswith('lang_'):
         lang_code = query.data.replace('lang_', '')
         context.user_data['selected_language'] = lang_code
-        
         # Determine the next step based on the previous state
         previous_state = context.user_data.get('state')
         if previous_state == 'waiting_for_story_language_selection':
@@ -732,66 +749,57 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data['writer_tone'] = tone
         context.user_data['state'] = 'waiting_for_writer_topic'
         await query.edit_message_text(f"You chose {tone.capitalize()} tone. Now, what topic should your story be about? ✍️")
+
     elif query.data.startswith('length_'):
         length = query.data.replace('length_', '')
         context.user_data['story_length'] = length
         context.user_data['state'] = 'waiting_for_detailed_story_prompt'
-        await query.edit_message_text("Please send me your story idea or prompt. I will generate a dark fantasy/science fiction story for you. 📝")
+        await query.edit_message_text(f"You chose a {length} story. Now, please tell me the detailed prompt for your story! ✍️")
+
     elif query.data.startswith('voice_'):
-        voice_gender = query.data.replace('voice_', '')
-        context.user_data['tts_voice'] = voice_gender
+        voice_type = query.data.replace('voice_', '')
+        context.user_data['tts_voice'] = voice_type
         context.user_data['state'] = 'waiting_for_tts_age'
-        await query.edit_message_text(f"You chose a {voice_gender} voice. Please enter the age you want the voice to represent (e.g., 30, 65): 🎂")
+        await query.edit_message_text(f"You chose a {voice_type} voice persona. Now, please enter an approximate age for the voice (e.g., 30, 65): 🎂")
+
     elif query.data.startswith('download_'):
-        await download_file_callback(update, context)
+        file_format = query.data.replace('download_', '')
+        last_content = context.user_data.get('last_content')
+        if last_content:
+            title = last_content.get('title', 'Generated Document').replace(' ', '_').replace('"', '').replace("'", "")
+            # Use the full markdown content for downloads to ensure fidelity
+            content_body = last_content.get('body', "No content available.")
+            file_path = f"{title}.{file_format}"
 
-async def download_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    file_type = query.data.split('_')[1]
-    chat_id = query.message.chat_id
+            if file_format == 'pdf':
+                create_pdf(content_body, file_path)
+            elif file_format == 'docx':
+                create_docx(content_body, file_path)
+            elif file_format == 'txt':
+                create_txt(content_body, file_path)
+            else:
+                await query.edit_message_text("Unsupported file format selected.")
+                return
 
-    content_data = context.user_data.get('last_content')
-    if not content_data:
-        await query.message.reply_text("Sorry, I couldn't find the content to download. Please generate something new.")
-        return
+            with open(file_path, 'rb') as f:
+                if file_format == 'pdf':
+                    await context.bot.send_document(chat_id=query.message.chat_id, document=f, caption=f"Here's your content as a {file_format.upper()}!")
+                elif file_format == 'docx':
+                    await context.bot.send_document(chat_id=query.message.chat_id, document=f, caption=f"Here's your content as a {file_format.upper()}!")
+                elif file_format == 'txt':
+                    await context.bot.send_document(chat_id=query.message.chat_id, document=f, caption=f"Here's your content as a {file_format.upper()}!")
+            os.remove(file_path) # Clean up the file after sending
+            await query.edit_message_text(f"Your content has been sent as a {file_format.upper()}! Enjoy! 🎉")
+        else:
+            await query.edit_message_text("No content found to download. Please generate something first!")
+    elif query.data == 'null':
+        # Do nothing for 'null' callbacks, used for informational buttons
+        pass
 
-    title = content_data['title']
-    body = content_data['body']
-    content_type = content_data['type']
-    
-    full_content = body # body now contains the full markdown, including title
-    filename_base = f"{title.replace(' ', '_').lower()}_{chat_id}"
-
-    if file_type == 'pdf':
-        filename = f"{filename_base}.pdf"
-        create_pdf(full_content, filename)
-        caption = f"Here's your {content_type} in PDF format!"
-    elif file_type == 'docx':
-        filename = f"{filename_base}.docx"
-        create_docx(full_content, filename)
-        caption = f"Here's your {content_type} in DOCX format!"
-    elif file_type == 'txt':
-        filename = f"{filename_base}.txt"
-        create_txt(full_content, filename)
-        caption = f"Here's your {content_type} in TXT format!"
-    else:
-        return
-
-    with open(filename, 'rb') as f:
-        await context.bot.send_document(chat_id=chat_id, document=f, filename=filename, caption=caption)
-    
-    os.remove(filename)
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log the error and send a telegram message to notify the developer."""
-    logger.error("Exception while handling an update:", exc_info=context.error)
-    if isinstance(context.error, Conflict):
-        logger.warning("Conflict error detected. Another instance of the bot might be running.")
-
-def main() -> None:
-    """Start the bot."""
+async def main() -> None:
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # Command Handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("story", story_command))
     application.add_handler(CommandHandler("ebook", ebook_command))
@@ -805,12 +813,31 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("play", play_command))
 
+
+    # Message Handler for states and WebApp data
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data)) # Add this for WebApp data
+
+    # Callback Query Handler for inline buttons
     application.add_handler(CallbackQueryHandler(button_callback))
-    application.add_error_handler(error_handler)
 
-    logger.info("Bot started. Press Ctrl-C to stop.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info("Bot starting...")
+    try:
+        await application.run_polling(poll_interval=3) # Poll every 3 seconds
+    except Conflict:
+        logger.warning("Conflict error caught, likely another bot instance running. Trying again...")
+        # You might want to add a delay here before retrying or exit
+        # For a simple solution, this might suffice if the conflict is transient.
+        await application.run_polling(poll_interval=3)
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        # You might want to implement more sophisticated error handling or restart logic here
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    # Use asyncio.run() to run the async main function
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user.")
+    except Exception as e:
+        logger.critical(f"Fatal error in main execution: {e}")
