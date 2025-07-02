@@ -6,3 +6,5 @@ requests
 aiohttp
 flask
 gunicorn
+python-telegram-bot
+google-generativeai==0.3.2
