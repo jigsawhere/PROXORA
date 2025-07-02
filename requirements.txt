@@ -3,5 +3,5 @@ Flask
 reportlab
 python-docx
 google-generativea
-python-telegram-bot= = 20.8
+python-telegram-bot= 20.8
 python-dotenv
