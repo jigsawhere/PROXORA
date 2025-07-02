@@ -1,4 +1,8 @@
-python-telegram-bot==20.8
-google-generativeai
-python-dotenv
+python-docx
 reportlab
+python-telegram-bot==20.0
+openai
+requests
+aiohttp
+flask
+gunicorn
