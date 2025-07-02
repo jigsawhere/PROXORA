@@ -2,48 +2,100 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PROXORA Telegram Bot</title>
+  <title>PROXORA AI Bot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      background: #0d1117;
-      color: #00ffcc;
+      height: 100vh;
+      background: radial-gradient(circle at top left, #0f2027, #203a43, #2c5364);
       font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: white;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
       text-align: center;
-      padding: 50px;
+      padding: 40px;
+      width: 90%;
+      max-width: 500px;
+      animation: slideIn 1.2s ease forwards;
+      transform: translateY(50px);
+      opacity: 0;
     }
-    h1 {
-      font-size: 3em;
+
+    @keyframes slideIn {
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
-    p {
-      font-size: 1.2em;
-      margin-top: 10px;
+
+    .card h1 {
+      font-size: 2.8em;
+      margin-bottom: 15px;
+      background: linear-gradient(90deg, #00ffe7, #00c6ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
-    button {
-      margin-top: 30px;
-      padding: 14px 28px;
-      background-color: #00ffcc;
+
+    .card p {
+      font-size: 1.1em;
+      margin-bottom: 30px;
+      color: #cceeff;
+    }
+
+    .glow-button {
+      background: linear-gradient(135deg, #00ffcc, #0099ff);
+      color: #000;
       border: none;
+      padding: 15px 30px;
       font-size: 18px;
-      color: #0d1117;
+      border-radius: 12px;
       cursor: pointer;
-      border-radius: 10px;
-      transition: all 0.2s ease;
-    }
-    button:hover {
-      background-color: #00ddb3;
-    }
-    a {
+      position: relative;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px #00ffcc, 0 0 40px #00c6ff;
       text-decoration: none;
+      display: inline-block;
+    }
+
+    .glow-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px #00ffcc, 0 0 60px #00c6ff;
+    }
+
+    @media (max-width: 480px) {
+      .card h1 {
+        font-size: 2em;
+      }
+
+      .card p {
+        font-size: 1em;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Welcome to PROXORA 🤖</h1>
-  <p>Your AI-powered assistant is ready to talk on Telegram.</p>
 
-  <a href="https://t.me/PROXORA_bot" target="_blank">
-    <button>💬 Chat with PROXORA Bot</button>
-  </a>
+  <div class="card">
+    <h1>Welcome to PROXORA 🤖</h1>
+    <p>Your Infinity-Class AI assistant is live on Telegram.<br>Click below to start chatting!</p>
+    <a class="glow-button" href="https://t.me/PROXORA_bot" target="_blank">💬 Chat on Telegram</a>
+  </div>
+
 </body>
 </html>
