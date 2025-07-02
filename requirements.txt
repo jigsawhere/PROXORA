@@ -1,0 +1,5 @@
+python-telegram-bot
+Flask
+reportlab
+python-docx
+google-generativeai
